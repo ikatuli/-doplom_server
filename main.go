@@ -5,7 +5,7 @@ import (
     "net/http" // пакет для поддержки HTTP протокола
     "strings" // пакет для работы с  UTF-8 строками
     "log" // пакет для логирования
-
+	"github.com/pelletier/go-toml" // пакет для конфигурационного файла
 	//Мои куски кода
 	"doplom_server/user"
 )
@@ -41,12 +41,22 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
-	fileServer := http.FileServer(http.Dir("./static"))
+	config, err := toml.LoadFile("config.toml")
+
+	var host string
+
+	if err != nil {
+    fmt.Println("Error ", err.Error())
+	} else {
+		host=config.Get("Server.host").(string)+":"+config.Get("Server.port").(string)
+	}
+
+	fileServer := http.FileServer(http.Dir("static"))
     http.Handle("/", fileServer) // установим роутер
 	http.HandleFunc("/hello", Authentication(HomeRouterHandler))
 
-    err := http.ListenAndServe(":9000", nil) // задаем слушать порт
-    if err != nil {
+    err = http.ListenAndServe(host, nil) // задаем слушать порт
+	if err != nil {
         log.Fatal("ListenAndServe: ", err)
     }
 }
