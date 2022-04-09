@@ -1,21 +1,20 @@
-# docker build --tag doplom_server ./ 
-FROM archlinux
-RUN pacman-db-upgrade
-RUN pacman -Suy  gcc-go --noconfirm
-RUN yes | pacman -Scc 
+# syntax=docker/dockerfile:1
 
-RUN mkdir /app
+# docker build --tag doplom_server ./
+FROM golang:1.16-alpine
+
 WORKDIR /app
 COPY main.go ./
 COPY go.mod ./
 COPY static/ ./static
 COPY user/ ./user
+COPY config.toml ./
 RUN go mod download
 RUN go mod tidy
-RUN go build -compiler=gccgo main.go
+RUN go build main.go
 
 EXPOSE  9000
 
-CMD [ "/app/main" ]
+CMD ["/app/main"]
 
 # docker run -p 9000:9000 doplom_server

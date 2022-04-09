@@ -1,6 +1,9 @@
 [Server]
-host="127.0.0.1"
+host="0.0.0.0"
 port="9000"
 [Database]
-user="user"
-password="password"
+dbhost="postgresql"
+dbport="5432"
+dbname="test_bd"
+user="test_user"
+password="test_passwd"
