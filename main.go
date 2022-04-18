@@ -142,6 +142,9 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимс
 		http.Error(w, "401 Авторизация не пройдена", http.StatusUnauthorized)
 	})
 }
+func SquidConfig(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "./static/squid_config.html")
+}
 
 func main() {
 	config, err := toml.LoadFile("config.toml") //Подключаем конфиг
@@ -165,6 +168,7 @@ func main() {
 	http.HandleFunc("/install",Install)// Инициализация настроек
 	http.HandleFunc("/create_user",Authentication(CreateUserUI))// Создание пользователя
 	http.HandleFunc("/change_password",ChangePassword)// Создание пользователя
+	http.HandleFunc("/squid_config",SquidConfig)// Создание пользователя
 
     err = http.ListenAndServe(host, nil) // задаем слушать порт
 	if err != nil {

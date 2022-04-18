@@ -7,6 +7,10 @@
 *.dylib
 main
 
+# Vagrant
+.vagrant/
+images/*
+
 # Test binary, built with `go test -c`
 *.test
 

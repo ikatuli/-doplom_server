@@ -4,34 +4,27 @@
 
 На странице `http://localhost:9000/install` можно установить пароль администратора.
 
-На странице `http://localhost:9000/hello`, после прохождение ацетификации можно посмотреть приветственное сообщение.
+На странице `http://localhost:9000/hello`, после прохождение аутентификации можно посмотреть приветственное сообщение.
 
-На странице `http://localhost:9000/create_user`, после прохождение ацетификации можно создать нового пользователя.
+На странице `http://localhost:9000/create_user`, после прохождение аутентификации можно создать нового пользователя.
 
 А на странице `http://localhost:9000/change_password` можно изменить пароль для текущего пользователя.
 
 ## Развёртывание
 
-Создать сеть:
+Первым делом необходимо раздобыть базовый образ. Для этого скачайте содержимое репозитория [arch-boxes](https://gitlab.archlinux.org/archlinux/arch-boxes).
+
+Соберите образ командой:
 
 ```
-docker network create testnet
+./build-host.sh
 ```
 
-Развернуть контейнер с postgres:
+В директории `./arch-boxes/output` находится файл `Arch-Linux-x86_64-virtualbox-*.box`. Переименуйте его в `Arch-Linux-x86_64-virtualbox.box` и поместите в каталог `images` этого проекта. Либо укажите путь к образу в файле `Vagrantfile`.
+
+Для развёртывания виртуальной машины с программой, запустите:
 
 ```
-docker run --net testnet --name postgresql -e POSTGRES_DB=test_bd -e POSTGRES_USER=test_user -e POSTGRES_PASSWORD=test_passwd -p 5432:5432 -d postgres
+vagrant up
 ```
 
-Собрать контейнер с приложением:
-
-```
-docker build --tag web_server ./
-```
-
-После сборки запускаем контейнер:
-
-```
-docker run  --net testnet  --name web_server_test  -p 9000:9000 web_server
-```
