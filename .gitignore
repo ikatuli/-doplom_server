@@ -10,6 +10,7 @@ main
 # Vagrant
 .vagrant/
 images/*
+configuration/*
 
 # Test binary, built with `go test -c`
 *.test

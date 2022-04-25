@@ -1,0 +1,29 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang='ru'>
+    <head>
+        <meta charset='utf-8'>
+        <title>{{template "title" .}} - Snippetbox</title>
+    </head>
+    <body>
+        <header>
+				<nav>
+					<a href="/">Главная </a> |
+					<a href="/squid_config">squid </a> |
+					<a href="/about">e2guardian </a> |
+					<a href="/about">dnscrypt-proxy </a> |
+					<a href="/about">netfilter </a> |
+					<a href="/account">Аккаунт </a> |
+					<a href="/about">Состояние служб </a>
+				</nav>
+		</header> 
+        <main>
+            {{template "main" .}}
+        </main>
+<footer>
+All rights reversed
+Цыплаков Сергей 🄯 2022
+	</footer>
+    </body>
+</html>
+{{end}}

@@ -1,6 +1,7 @@
 [Server]
 host="0.0.0.0"
 port="9000"
+installmod=true
 [Database]
 dbhost="127.0.0.1"
 dbport="5432"

@@ -21,8 +21,8 @@ Vagrant.configure("2") do |config|
   # config.vm.box_check_update = false
 
   # Открываем порт 9000 только для локальных запросов
+  config.vm.network "forwarded_port", guest: 3128, host: 3128, host_ip: "127.0.0.1"
   config.vm.network "forwarded_port", guest: 9000, host: 9000, host_ip: "127.0.0.1"
-
 
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
 
   # Обновление системы
    config.vm.provision "shell", inline: <<-SHELL
-      pacman -Suy  gcc-go postgresql --noconfirm
+      pacman -Suy  gcc-go postgresql squid openssl --noconfirm
       yes | pacman -Scc
    SHELL
 

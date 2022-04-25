@@ -3,7 +3,6 @@ package main
 import (
     "fmt" // пакет для форматированного ввода вывода
     "net/http" // пакет для поддержки HTTP протокола
-    "strings" // пакет для работы с  UTF-8 строками
     "log" // пакет для логирования
 	"html/template" // пакет для генирации html файлов
 	"github.com/pelletier/go-toml" // пакет для конфигурационного файла
@@ -11,6 +10,7 @@ import (
 	_ "github.com/lib/pq" // пакет драйвера PostgreSQL
 	//Мои куски кода
 	"doplom_server/user"
+	"doplom_server/squid"
 )
 
 var db (*sql.DB) //Глобальная переменная для базы данных
@@ -28,6 +28,7 @@ func DBInit (connect string) { //Создаём в базе таблицы
 
 	if err != nil {
         fmt.Println("Error ", err.Error())
+		panic(err)
     }
 }
 
@@ -46,7 +47,8 @@ func Install(w http.ResponseWriter, r *http.Request){ //Первоначальн
 			if err != nil {
 				fmt.Fprintf(w, "Ошибка создания пользователя: %v", err)
 			} else{
-				fmt.Fprintf(w, "Пользователь admin создан")
+				fmt.Fprintf(w, "Пользователь admin создан\n")
+				fmt.Fprintf(w, "Пожалуйста, отключите install mod в config.toml")
 			}
 
 		default:
@@ -58,7 +60,12 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём по
 	var err error
 	switch r.Method {
 		case "GET":
-			http.ServeFile(w, r, "./static/CreateUserUI.html")
+			files := []string{
+						"./static/CreateUserUI.tmpl",
+						"./static/base.tmpl",
+					}
+			t, _ := template.ParseFiles(files...)
+			t.Execute(w, nil)
 		case "POST":
 			if err = r.ParseForm(); err != nil {
 			fmt.Fprintf(w, "ParseForm() err: %v", err)
@@ -78,6 +85,15 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём по
 		}
 }
 
+func Account(w http.ResponseWriter, r *http.Request){ //Создаём пользователя
+	files := []string{
+						"./static/account.tmpl",
+						"./static/base.tmpl",
+					}
+	t, _ := template.ParseFiles(files...)
+	t.Execute(w, nil)
+}
+
 func ChangePassword(w http.ResponseWriter, r *http.Request){ //Меняем пароль
 	login, password, err:= r.BasicAuth()
 
@@ -88,7 +104,11 @@ func ChangePassword(w http.ResponseWriter, r *http.Request){ //Меняем па
 				var err error
 				switch r.Method {
 				case "GET":
-					t, _ := template.ParseFiles("./static/ChangePassword.html")
+					files := []string{
+						"./static/ChangePassword.tmpl",
+						"./static/base.tmpl",
+					}
+					t, _ := template.ParseFiles(files...)
 					t.Execute(w, login)
 				case "POST":
 					if err = r.ParseForm(); err != nil {
@@ -112,20 +132,6 @@ func ChangePassword(w http.ResponseWriter, r *http.Request){ //Меняем па
 		http.Error(w, "401 Авторизация не пройдена", http.StatusUnauthorized)
 }
 
-
-func HomeRouterHandler(w http.ResponseWriter, r *http.Request) {
-    r.ParseForm() //анализ аргументов,
-    fmt.Println(r.Form)  // ввод информации о форме на стороне сервера
-    fmt.Println("path", r.URL.Path)
-    fmt.Println("scheme", r.URL.Scheme)
-    fmt.Println(r.Form["url_long"])
-    for k, v := range r.Form {
-        fmt.Println("key:", k)
-        fmt.Println("val:", strings.Join(v, ""))
-    }
-    fmt.Fprintf(w, "Hello!") // отправляем данные на клиентскую сторону
-}
-
 func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимся перед заходом на защищённые страницы
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		login, password, err:= r.BasicAuth()
@@ -142,33 +148,115 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимс
 		http.Error(w, "401 Авторизация не пройдена", http.StatusUnauthorized)
 	})
 }
+
 func SquidConfig(w http.ResponseWriter, r *http.Request) {
-	http.ServeFile(w, r, "./static/squid_config.html")
+	
+	switch r.Method {
+	case "GET":
+		files := []string{
+			"./static/squid_config.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, nil)
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			return
+		}
+
+		var SquidConf = make(map[string]string)
+
+		SquidConf["port"] = r.FormValue("port")
+		SquidConf["cache"] = r.FormValue("cache")
+		SquidConf["maximum_object_size"] = r.FormValue("maximum_object_size")
+		if r.FormValue("SSL") !="" {
+			SquidConf["SSL"] = r.FormValue("SSL")
+		}
+
+		squid.CreateConfig(SquidConf)
+		/*
+		*/
+
+	default:
+		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
+	}
+	return
 }
+
+func GenerateCertificate(w http.ResponseWriter, r *http.Request) {
+	
+	if r.Method == "POST" {
+		var err error
+		if err = r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			return
+		}
+
+		if r.FormValue("generate") =="Сгенерировать сертификат" {
+			if err = squid.CreateCertificate(); err != nil {
+				fmt.Fprintf(w, "Создание сертификата завершенно с ошибкой: %v", err)
+				return
+			}
+		}
+		fmt.Fprintf(w,"Создание сертификата завершенно")
+	} else {
+		fmt.Fprintf(w, "Sorry, only POST method are supported.")
+	}
+	return
+}
+
+func GetCertificate(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method == "POST" {
+		var err error
+		if err = r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			return
+		}
+
+		if r.FormValue("get") =="Скачать сертификат" {
+			http.ServeFile(w, r, "./configuration/myCA.der")
+		}
+	} else {
+		fmt.Fprintf(w, "Sorry, only POST method are supported.")
+	}
+	return
+}
+
+
+
 
 func main() {
 	config, err := toml.LoadFile("config.toml") //Подключаем конфиг
 
 	var host string
 	var connect string
+	var installmod bool
 
 	if err != nil { //Парсим данные из конфига
     fmt.Println("Error ", err.Error())
 	} else {
 		host=config.Get("Server.host").(string)+":"+config.Get("Server.port").(string)
 		connect="host="+config.Get("Database.dbhost").(string)+" port="+config.Get("Database.dbport").(string)+" user="+config.Get("Database.user").(string)+" password="+config.Get("Database.password").(string)+" dbname="+config.Get("Database.dbname").(string)+" sslmode=disable"
+		installmod=config.Get("Server.installmod").(bool)
 	}
 
 	DBInit(connect) // Инициализация базы данных
-	
-	fileServer := http.FileServer(http.Dir("static"))
-    http.Handle("/", fileServer) // установим роутер
-	http.HandleFunc("/hello", Authentication(HomeRouterHandler))
 
-	http.HandleFunc("/install",Install)// Инициализация настроек
-	http.HandleFunc("/create_user",Authentication(CreateUserUI))// Создание пользователя
-	http.HandleFunc("/change_password",ChangePassword)// Создание пользователя
-	http.HandleFunc("/squid_config",SquidConfig)// Создание пользователя
+	if installmod {
+		http.HandleFunc("/install",Install)// Инициализация настроек
+	}
+	
+	http.HandleFunc("/account",Authentication(Account)) //Аккаунт
+		http.HandleFunc("/create_user",Authentication(CreateUserUI))// Создание пользователя
+		http.HandleFunc("/change_password",ChangePassword)// Создание пользователяa
+
+	http.HandleFunc("/squid_config",Authentication(SquidConfig))// Настройки прокси сервера
+		http.HandleFunc("/generate_certificate",Authentication(GenerateCertificate))// Создать сертификат
+		http.HandleFunc("/get_certificate",Authentication(GetCertificate))// Создать сертификат
 
     err = http.ListenAndServe(host, nil) // задаем слушать порт
 	if err != nil {
