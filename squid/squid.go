@@ -6,7 +6,15 @@ import(
 	"fmt"
 )
 
-func CreateConfig(SquidConf map[string]string){
+type SquidConf struct {
+	Port     string
+	Cache    string
+	MaximumObjectSize string
+	SSL      string
+}
+
+
+func CreateConfig(Conf SquidConf){
 	f, err := os.Create("./configuration/squid.conf") 
 
 	if err != nil {
@@ -61,22 +69,22 @@ http_access deny all
 
 #Порт прокси
 `) 
-	if SquidConf["SSL"] !="" {
-		fmt.Fprintln(f,"http_port ",SquidConf["port"],"ssl-bump tls-cert=/etc/squid/myCA.pem generate-host-certificates=on dynamic_cert_mem_cache_size=4MB options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1,SINGLE_DH_USE,SINGLE_ECDH_USE")
+	if Conf.SSL !="" {
+		fmt.Fprintln(f,"http_port ",Conf.Port,"ssl-bump tls-cert=/etc/squid/myCA.pem generate-host-certificates=on dynamic_cert_mem_cache_size=4MB options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1,SINGLE_DH_USE,SINGLE_ECDH_USE")
 		f.WriteString("ssl_bump stare all\nssl_bump bump all\n")
 
 		err = exec.Command("/usr/lib/squid/security_file_certgen", "-c", "-s", "/var/cache/squid/ssl_db", "-M", "4MB").Run()
 		if err != nil {
-			panic(err)
+			fmt.Println(err)
 		}
 
 		} else {
-	fmt.Fprintln(f,"http_port ",SquidConf["port"])
+	fmt.Fprintln(f,"http_port ",Conf.Port)
 	}
 	fmt.Fprintln(f,"#Директория для кеша")
-	fmt.Fprintln(f,"cache_dir ufs /var/cache/squid ",SquidConf["cache"],"16 256")
+	fmt.Fprintln(f,"cache_dir ufs /var/cache/squid ",Conf.Cache,"16 256")
 	fmt.Fprintln(f,"#Максимальный размер кешируемого объекта")
-	fmt.Fprintln(f,"maximum_object_size",SquidConf["maximum_object_size"],"MB")
+	fmt.Fprintln(f,"maximum_object_size",Conf.MaximumObjectSize,"MB")
 
 	
 

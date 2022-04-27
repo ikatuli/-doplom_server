@@ -77,5 +77,6 @@ WantedBy=multi-user.target" > /etc/systemd/system/doplom.service
      systemctl enable doplom.service --now
    SHELL
 
+   config.vm.provision "shell", inline: "systemctl enable squid.service --now"
 
 end

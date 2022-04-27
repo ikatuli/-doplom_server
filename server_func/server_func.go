@@ -28,10 +28,26 @@ func DBInit (connect string) { //Создаём в базе таблицы
         fmt.Println("Error ", err.Error())
 		panic(err)
     }
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS squid (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
+
+	if err != nil {
+        fmt.Println("Error ", err.Error())
+		panic(err)
+    }
 }
 
 func DbClose () {
 	db.Close()
+}
+
+func report (w http.ResponseWriter,s string) { //Ввывод всяческих сообщений о статусе
+	files := []string{
+		"./static/report.tmpl",
+		"./static/base.tmpl",
+	}
+	t, _ := template.ParseFiles(files...)
+	t.Execute(w, s)
 }
 
 func Install(w http.ResponseWriter, r *http.Request){ //Первоначальная настройка сервера
@@ -41,20 +57,19 @@ func Install(w http.ResponseWriter, r *http.Request){ //Первоначальн
 			http.ServeFile(w, r, "./static/install.html")
 		case "POST":
 			if err = r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return}
 			Password:= r.FormValue("passwd")
-			err=user.СreateUser(db,"admin",Password)
+			err=user.СreateUser(db,"admin",Password)			
 
 			if err != nil {
-				fmt.Fprintf(w, "Ошибка создания пользователя: %v", err)
+				report(w,fmt.Sprintf("Ошибка создания пользователя: %v", err))
 			} else{
-				fmt.Fprintf(w, "Пользователь admin создан\n")
-				fmt.Fprintf(w, "Пожалуйста, отключите install mod в config.toml")
+				report(w,"Пользователь admin создан. Пожалуйста, отключите install mod в config.toml")
 			}
 
 		default:
-			fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
+			report(w,"Sorry, only GET and POST methods are supported.")
 		}
 	}
 
@@ -70,20 +85,20 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём по
 			t.Execute(w, nil)
 		case "POST":
 			if err = r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return}
 			Login:= r.FormValue("login")
 			Password:= r.FormValue("passwd")
 			err=user.СreateUser(db,Login,Password)
 
 			if err != nil {
-				fmt.Fprintf(w, "Ошибка создания пользователя: %v", err)
+				report(w,fmt.Sprintf("Ошибка создания пользователя: %v", err))
 			} else{
-				fmt.Fprintf(w, "Пользователь %s создан",Login)
+				report(w,fmt.Sprintf( "Пользователь %s создан",Login))
 			}
 
 		default:
-			fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
+			report(w,"Sorry, only GET and POST methods are supported.")
 		}
 }
 
@@ -120,12 +135,12 @@ func ChangePassword(w http.ResponseWriter, r *http.Request){ //Меняем па
 					err=user.ChangeUser(db,login,Password)
 					
 					if err != nil {
-						fmt.Fprintf(w, "Ошибка при смене пароля: %v", err)
+						report(w, fmt.Sprintf( "Ошибка при смене пароля: %v", err))
 					} else{
-						fmt.Fprintf(w, "Пароль пользователя %s был изменён",login)
+						report(w,fmt.Sprintf("Пароль пользователя %s был изменён",login))
 					}
 				default:
-					fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
+					report(w,"Sorry, only GET and POST methods are supported.")
 				}
 				return
 			}
@@ -152,38 +167,77 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимс
 }
 
 func SquidConfig(w http.ResponseWriter, r *http.Request) {
-	
+	 
 	switch r.Method {
 	case "GET":
+
+		rows, err:=db.Query("SELECT * FROM squid;")
+		if err != nil {	fmt.Println(err)}
+
+		//Инициализируем переменные
+		var Conf squid.SquidConf
+		Conf.Port= "";Conf.Cache = "";Conf.MaximumObjectSize = "";Conf.SSL = ""
+
+		//Вытаскиваем из запроса
+		var id string;var parameter string;var value string;
+		for rows.Next() {
+			if err = rows.Scan(&id,&parameter,&value); err != nil {
+				fmt.Println(err)
+			}
+			switch parameter {
+			case "Port":
+				Conf.Port=value
+			case "Cache":
+				Conf.Cache=value
+			case "MaximumObjectSize":
+				Conf.MaximumObjectSize=value
+			case "SSL":
+				Conf.SSL=value
+			}
+		}
+
+		if Conf.Port=="" {Conf.Port= "3128"}
+		if Conf.Cache=="" {Conf.Cache = "64"}
+		if Conf.MaximumObjectSize=="" {Conf.MaximumObjectSize= "10"}
+
 		files := []string{
 			"./static/squid_config.tmpl",
 			"./static/base.tmpl",
 		}
 
 		t, _ := template.ParseFiles(files...)
-		t.Execute(w, nil)
+		t.Execute(w, Conf)
 	case "POST":
 		var err error
 		if err = r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return
 		}
 
-		var SquidConf = make(map[string]string)
-
-		SquidConf["port"] = r.FormValue("port")
-		SquidConf["cache"] = r.FormValue("cache")
-		SquidConf["maximum_object_size"] = r.FormValue("maximum_object_size")
+		var Conf squid.SquidConf
+		Conf.Port = r.FormValue("port")
+		Conf.Cache = r.FormValue("cache")
+		Conf.MaximumObjectSize = r.FormValue("maximum_object_size")
 		if r.FormValue("SSL") !="" {
-			SquidConf["SSL"] = r.FormValue("SSL")
+			Conf.SSL = r.FormValue("SSL")
 		}
 
-		squid.CreateConfig(SquidConf)
-		/*
-		*/
+		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","Port",Conf.Port)
+		if err != nil {fmt.Println(err)}
+
+		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","Cache",Conf.Cache)
+		if err != nil {fmt.Println(err)}
+
+		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","MaximumObjectSize",Conf.MaximumObjectSize)
+		if err != nil {fmt.Println(err)}
+
+		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","SSL",Conf.SSL)
+		if err != nil {fmt.Println(err)}
+
+		squid.CreateConfig(Conf)
 
 	default:
-		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
+		report(w,"Sorry, only GET and POST methods are supported.")
 	}
 	return
 }
@@ -193,19 +247,19 @@ func GenerateCertificate(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		var err error
 		if err = r.ParseForm(); err != nil {
-			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return
 		}
 
 		if r.FormValue("generate") =="Сгенерировать сертификат" {
 			if err = squid.CreateCertificate(); err != nil {
-				fmt.Fprintf(w, "Создание сертификата завершенно с ошибкой: %v", err)
+				report(w,fmt.Sprintf("Создание сертификата завершенно с ошибкой: %v", err))
 				return
 			}
 		}
-		fmt.Fprintf(w,"Создание сертификата завершенно")
+		report(w,"Создание сертификата завершенно")
 	} else {
-		fmt.Fprintf(w, "Sorry, only POST method are supported.")
+		report(w,"Sorry, only POST method are supported.")
 	}
 	return
 }
@@ -223,7 +277,7 @@ func GetCertificate(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "./configuration/myCA.der")
 		}
 	} else {
-		fmt.Fprintf(w, "Sorry, only POST method are supported.")
+		report(w,"Sorry, only POST method are supported.")
 	}
 	return
 }
