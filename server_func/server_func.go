@@ -4,6 +4,8 @@ import(
 	"net/http" // пакет для поддержки HTTP протокола
 	"html/template" // пакет для генирации html файлов
 	"fmt"
+	"os" //Для проверки существования файлов
+	"errors" 
 	"database/sql" // пакет для работы с sql
 	_ "github.com/lib/pq" // пакет драйвера PostgreSQL
 	//Мои куски кода
@@ -22,7 +24,7 @@ func DBInit (connect string) { //Создаём в базе таблицы
 
 	//fmt.Printf("%T\n", db)
 
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS users (id SERIAL,login character varying(20) UNIQUE,password character(60));`)
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS users (id SERIAL,login character varying(20) UNIQUE,password character(60),role smallint);`)
 
 	if err != nil {
         fmt.Println("Error ", err.Error())
@@ -51,16 +53,16 @@ func report (w http.ResponseWriter,s string) { //Ввывод всяческих
 }
 
 func Install(w http.ResponseWriter, r *http.Request){ //Первоначальная настройка сервера
-	var err error
 	switch r.Method {
 		case "GET":
 			http.ServeFile(w, r, "./static/install.html")
 		case "POST":
+			var err error
 			if err = r.ParseForm(); err != nil {
 			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return}
 			Password:= r.FormValue("passwd")
-			err=user.СreateUser(db,"admin",Password)			
+			err=user.СreateUser(db,"admin",Password,"admin")			
 
 			if err != nil {
 				report(w,fmt.Sprintf("Ошибка создания пользователя: %v", err))
@@ -73,8 +75,8 @@ func Install(w http.ResponseWriter, r *http.Request){ //Первоначальн
 		}
 	}
 
-func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём пользователя
-	var err error
+func CreateUserUI(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Создаём пользователя
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
 	switch r.Method {
 		case "GET":
 			files := []string{
@@ -82,19 +84,18 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём по
 						"./static/base.tmpl",
 					}
 			t, _ := template.ParseFiles(files...)
-			t.Execute(w, nil)
+			t.Execute(w, user.Role)
 		case "POST":
+			var err error
 			if err = r.ParseForm(); err != nil {
 			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return}
-			Login:= r.FormValue("login")
-			Password:= r.FormValue("passwd")
-			err=user.СreateUser(db,Login,Password)
+			err=user.СreateUser(db,r.FormValue("login"),r.FormValue("passwd"),r.FormValue("role"))
 
 			if err != nil {
 				report(w,fmt.Sprintf("Ошибка создания пользователя: %v", err))
 			} else{
-				report(w,fmt.Sprintf( "Пользователь %s создан",Login))
+				report(w,fmt.Sprintf( "Пользователь %s создан",r.FormValue("login")))
 			}
 
 		default:
@@ -102,54 +103,44 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request){ //Создаём по
 		}
 }
 
-func Account(w http.ResponseWriter, r *http.Request){ //Создаём пользователя
+func Account(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Создаём пользователя
 	files := []string{
 						"./static/account.tmpl",
 						"./static/base.tmpl",
 					}
 	t, _ := template.ParseFiles(files...)
-	t.Execute(w, nil)
+	t.Execute(w, userProfile.Role)
 }
 
-func ChangePassword(w http.ResponseWriter, r *http.Request){ //Меняем пароль
-	login, password, err:= r.BasicAuth()
-
-		if err {
-			usr := user.FindUser(db,login)
-			ok := user.CheckCredentials(usr,password)
-			if ok == nil { //После того как пользователь залогинился
-				var err error
-				switch r.Method {
-				case "GET":
-					files := []string{
-						"./static/ChangePassword.tmpl",
-						"./static/base.tmpl",
-					}
-					t, _ := template.ParseFiles(files...)
-					t.Execute(w, login)
-				case "POST":
-					if err = r.ParseForm(); err != nil {
-						fmt.Fprintf(w, "ParseForm() err: %v", err)
-						return}
-					Password:= r.FormValue("passwd")
-					err=user.ChangeUser(db,login,Password)
-					
-					if err != nil {
-						report(w, fmt.Sprintf( "Ошибка при смене пароля: %v", err))
-					} else{
-						report(w,fmt.Sprintf("Пароль пользователя %s был изменён",login))
-					}
-				default:
-					report(w,"Sorry, only GET and POST methods are supported.")
-				}
-				return
-			}
+func ChangePassword(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Меняем пароль
+	switch r.Method {
+	case "GET":
+		files := []string{
+			"./static/ChangePassword.tmpl",
+			"./static/base.tmpl",
 		}
-		w.Header().Set("WWW-Authenticate", `Basic realm="Авторизация", charset="UTF-8"`)
-		http.Error(w, "401 Авторизация не пройдена", http.StatusUnauthorized)
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, userProfile.Login)
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			return}
+		Password:= r.FormValue("passwd")
+		err=user.ChangeUser(db,userProfile.Login,Password)
+					
+		if err != nil {
+			report(w, fmt.Sprintf( "Ошибка при смене пароля: %v", err))
+		} else{
+			report(w,fmt.Sprintf("Пароль пользователя %s был изменён",userProfile.Login))
+		}
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
 }
 
-func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимся перед заходом на защищённые страницы
+func Authentication(next func(http.ResponseWriter,*http.Request,user.User)) http.HandlerFunc { //Логинимся перед заходом на защищённые страницы
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		login, password, err:= r.BasicAuth()
 
@@ -157,7 +148,7 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимс
 			usr := user.FindUser(db,login)
 			ok := user.CheckCredentials(usr,password)
 			if ok == nil {
-				next.ServeHTTP(w, r)
+				next(w, r, usr)
 				return
 			} 
 		}
@@ -166,8 +157,8 @@ func Authentication(next http.HandlerFunc) http.HandlerFunc { //Логинимс
 	})
 }
 
-func SquidConfig(w http.ResponseWriter, r *http.Request) {
-	 
+func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
 	switch r.Method {
 	case "GET":
 
@@ -222,6 +213,11 @@ func SquidConfig(w http.ResponseWriter, r *http.Request) {
 			Conf.SSL = r.FormValue("SSL")
 		}
 
+		if Conf.SSL == "SSL" { //Сгенерировать сертификат если его нет
+			if _, err := os.Stat("/etc/squid/myCA.pem"); errors.Is(err, os.ErrNotExist) {
+				squid.CreateCertificate()
+			}
+		}
 		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","Port",Conf.Port)
 		if err != nil {fmt.Println(err)}
 
@@ -242,8 +238,8 @@ func SquidConfig(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func GenerateCertificate(w http.ResponseWriter, r *http.Request) {
-	
+func GenerateCertificate(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
 	if r.Method == "POST" {
 		var err error
 		if err = r.ParseForm(); err != nil {
@@ -264,8 +260,7 @@ func GenerateCertificate(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func GetCertificate(w http.ResponseWriter, r *http.Request) {
-
+func GetCertificate(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 	if r.Method == "POST" {
 		var err error
 		if err = r.ParseForm(); err != nil {
