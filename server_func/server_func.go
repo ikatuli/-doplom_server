@@ -165,9 +165,8 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		rows, err:=db.Query("SELECT * FROM squid;")
 		if err != nil {	fmt.Println(err)}
 
-		//Инициализируем переменные
-		var Conf squid.SquidConf
-		Conf.Port= "";Conf.Cache = "";Conf.MaximumObjectSize = "";Conf.SSL = ""
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
 
 		//Вытаскиваем из запроса
 		var id string;var parameter string;var value string;
@@ -175,21 +174,14 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 			if err = rows.Scan(&id,&parameter,&value); err != nil {
 				fmt.Println(err)
 			}
-			switch parameter {
-			case "Port":
-				Conf.Port=value
-			case "Cache":
-				Conf.Cache=value
-			case "MaximumObjectSize":
-				Conf.MaximumObjectSize=value
-			case "SSL":
-				Conf.SSL=value
-			}
+			conf[parameter] = value
 		}
 
-		if Conf.Port=="" {Conf.Port= "3128"}
-		if Conf.Cache=="" {Conf.Cache = "64"}
-		if Conf.MaximumObjectSize=="" {Conf.MaximumObjectSize= "10"}
+		//Вносим значение по умолчанию
+		if _, err:= conf["Port"]; !err { conf ["Port"] = "3128"	}
+		if _, err:= conf["Cache"]; !err { conf ["Cache"] = "64"	}
+		if _, err:= conf["MaximumObjectSize"]; !err { conf ["MaximumObjectSize"] = "10"	}
+		if _, err:= conf["SSL"]; !err { conf ["SSL"] = ""	}
 
 		files := []string{
 			"./static/squid_config.tmpl",
@@ -197,7 +189,7 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		}
 
 		t, _ := template.ParseFiles(files...)
-		t.Execute(w, Conf)
+		t.Execute(w, conf)
 	case "POST":
 		var err error
 		if err = r.ParseForm(); err != nil {
@@ -205,32 +197,37 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 			return
 		}
 
-		var Conf squid.SquidConf
-		Conf.Port = r.FormValue("port")
-		Conf.Cache = r.FormValue("cache")
-		Conf.MaximumObjectSize = r.FormValue("maximum_object_size")
-		if r.FormValue("SSL") !="" {
-			Conf.SSL = r.FormValue("SSL")
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из формы все параметры
+		for parameter, value:=range r.Form {
+			conf[parameter]=value[0]
 		}
 
-		if Conf.SSL == "SSL" { //Сгенерировать сертификат если его нет
+		if conf["SSL"] == "SSL" { //Сгенерировать сертификат если его нет
 			if _, err := os.Stat("/etc/squid/myCA.pem"); errors.Is(err, os.ErrNotExist) {
 				squid.CreateCertificate()
 			}
+		} else {
+			conf["SSL"] = "" //Обнуляем значение
 		}
-		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","Port",Conf.Port)
-		if err != nil {fmt.Println(err)}
 
-		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","Cache",Conf.Cache)
-		if err != nil {fmt.Println(err)}
+		//Сохраняем в базу данных все параметры
+		for parameter, value:=range conf {
+			_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;",parameter,value)
+			if err != nil {fmt.Println(err)}
+		}
+		
+		err=squid.CreateConfig(conf)
 
-		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","MaximumObjectSize",Conf.MaximumObjectSize)
-		if err != nil {fmt.Println(err)}
+		if err != nil {
+			report(w,fmt.Sprintf("Ошибка запуска прокси сервера: %v", err))
+			return
+		} else {
+			report(w,"Настройки прокси сервера обновлены")
+		}
 
-		_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;","SSL",Conf.SSL)
-		if err != nil {fmt.Println(err)}
-
-		squid.CreateConfig(Conf)
 
 	default:
 		report(w,"Sorry, only GET and POST methods are supported.")

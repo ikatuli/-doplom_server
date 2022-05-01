@@ -6,19 +6,11 @@ import(
 	"fmt"
 )
 
-type SquidConf struct {
-	Port     string
-	Cache    string
-	MaximumObjectSize string
-	SSL      string
-}
-
-
-func CreateConfig(Conf SquidConf){
+func CreateConfig(conf map[string]string) error {
 	f, err := os.Create("./configuration/squid.conf") 
 
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	defer f.Close()
 
@@ -69,8 +61,8 @@ http_access deny all
 
 #Порт прокси
 `) 
-	if Conf.SSL !="" {
-		fmt.Fprintln(f,"http_port ",Conf.Port,"ssl-bump tls-cert=/etc/squid/myCA.pem generate-host-certificates=on dynamic_cert_mem_cache_size=4MB options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1,SINGLE_DH_USE,SINGLE_ECDH_USE")
+	if conf["SSL"] !="" {
+		fmt.Fprintln(f,"http_port ",conf["Port"]," ssl-bump tls-cert=/etc/squid/myCA.pem generate-host-certificates=on dynamic_cert_mem_cache_size=4MB options=NO_SSLv3,NO_TLSv1,NO_TLSv1_1,SINGLE_DH_USE,SINGLE_ECDH_USE")
 		f.WriteString("ssl_bump stare all\nssl_bump bump all\n")
 
 		err = exec.Command("/usr/lib/squid/security_file_certgen", "-c", "-s", "/var/cache/squid/ssl_db", "-M", "4MB").Run()
@@ -79,12 +71,12 @@ http_access deny all
 		}
 
 		} else {
-	fmt.Fprintln(f,"http_port ",Conf.Port)
-	}
+			fmt.Fprintln(f,"http_port ",conf["Port"])
+		}
 	fmt.Fprintln(f,"#Директория для кеша")
-	fmt.Fprintln(f,"cache_dir ufs /var/cache/squid ",Conf.Cache,"16 256")
+	fmt.Fprintln(f,"cache_dir ufs /var/cache/squid ",conf["Cache"],"16 256")
 	fmt.Fprintln(f,"#Максимальный размер кешируемого объекта")
-	fmt.Fprintln(f,"maximum_object_size",Conf.MaximumObjectSize,"MB")
+	fmt.Fprintln(f,"maximum_object_size",conf["MaximumObjectSize"],"MB")
 
 	
 
@@ -102,14 +94,16 @@ refresh_pattern .       0   20% 4320
 	//Потому что /etc/ может находится в другой файловой системе, чем среда исполнения.
 	err = exec.Command("mv","./configuration/squid.conf", "/etc/squid/squid.conf").Run()
     if err != nil {
-        panic(err)
+        return err
     }
 
 	//Перезагружаем прокси сервер 
 	err = exec.Command("systemctl","restart", "squid.service").Run()
     if err != nil {
-        panic(err)
+        return err
     }
+
+	return err
 	
 //http://localhost:3128/squid-internal-mgr/info
 }

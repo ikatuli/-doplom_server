@@ -6,9 +6,9 @@
 <h1>Настройки прокси сервера Squid</h1>
 		<div>
 			<form method="POST" action="/squid_config"> 
-				<p><label>Порт </label><input required name="port" type="number" value={{ .Port}} /></p>
-				<p><label>Количество кеша оперативной памяти в MB </label><input required name="cache" type="number" value={{ .Cache}} /></p>
-				<p><label>Максимального размера кешируемого объекта в MB </label><input required name="maximum_object_size" type="number" value={{ .MaximumObjectSize}} /></p>
+				<p><label>Порт </label><input required name="Port" type="number" value={{ .Port}} /></p>
+				<p><label>Количество кеша оперативной памяти в MB </label><input required name="Cache" type="number" value={{ .Cache}} /></p>
+				<p><label>Максимального размера кешируемого объекта в MB </label><input required name="MaximumObjectSize" type="number" value={{ .MaximumObjectSize}} /></p>
 				<p><label>SSL Bumping </label><input type="checkbox" name="SSL" value="SSL" {{ if .SSL -}} checked {{end}}> </p>
 				<!--<p><label>Включить e2guardian</label><input type="checkbox" name="a" value="1417"> </p>
 				<p><label>Включить dnscrypt-proxy </label><input required name="dns" type="checkbox" value="127.0.0.1" /></p>
