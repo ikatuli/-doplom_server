@@ -4,7 +4,7 @@
 
 {{define "main"}}
 <h1>Настройки прокси сервера Squid</h1>
-		<div>
+		<div>{{ if eq .role "admin"}}
 			<form method="POST" action="/squid_config"> 
 				<p><label>Порт </label><input required name="Port" type="number" value={{ .Port}} /></p>
 				<p><label>Количество кеша оперативной памяти в MB </label><input required name="Cache" type="number" value={{ .Cache}} /></p>
@@ -18,7 +18,7 @@
 
 		<form action="/generate_certificate" method="post">
 		    <input type="submit" name="generate" value="Сгенерировать сертификат" />
-		</form>
+		</form>{{ end }}
 
 		<form action="/get_certificate" method="post">
 		    <input type="submit" name="get" value="Скачать сертификат" />

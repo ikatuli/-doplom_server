@@ -43,6 +43,20 @@ func DbClose () {
 	db.Close()
 }
 
+func Index (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	files := []string{
+		"./static/index.tmpl",
+		"./static/base.tmpl",
+	}
+	t, _ := template.ParseFiles(files...)
+
+	var status = map[string]string {
+		"squid": squid.Status(),
+	}
+
+	t.Execute(w, status)
+}
+
 func report (w http.ResponseWriter,s string) { //Ввывод всяческих сообщений о статусе
 	files := []string{
 		"./static/report.tmpl",
@@ -158,10 +172,24 @@ func Authentication(next func(http.ResponseWriter,*http.Request,user.User)) http
 }
 
 func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
-	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	//Если пользователь не администратор, то ему не показываются все настройки.
+	if userProfile.Role != "admin" {
+		var conf = map[string]string {
+			"role": userProfile.Role,
+		}
+		
+		files := []string{
+			"./static/squid_config.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, conf)
+		return
+	}
+
 	switch r.Method {
 	case "GET":
-
 		rows, err:=db.Query("SELECT * FROM squid;")
 		if err != nil {	fmt.Println(err)}
 
@@ -182,6 +210,9 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		if _, err:= conf["Cache"]; !err { conf ["Cache"] = "64"	}
 		if _, err:= conf["MaximumObjectSize"]; !err { conf ["MaximumObjectSize"] = "10"	}
 		if _, err:= conf["SSL"]; !err { conf ["SSL"] = ""	}
+
+		//Роль пользователя
+		conf ["role"] = userProfile.Role
 
 		files := []string{
 			"./static/squid_config.tmpl",
@@ -270,6 +301,26 @@ func GetCertificate(w http.ResponseWriter, r *http.Request, userProfile  user.Us
 		}
 	} else {
 		report(w,"Sorry, only POST method are supported.")
+	}
+	return
+}
+
+func Journal (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	if r.Method == "GET" {
+		files := []string{
+		"./static/journal.tmpl",
+		"./static/base.tmpl",
+	}
+	t, _ := template.ParseFiles(files...)
+
+	var status = map[string]string {
+		"squid": squid.Journal(),
+	}
+
+	t.Execute(w, status)
+	} else {
+		report(w,"Sorry, only GET method are supported.")
 	}
 	return
 }

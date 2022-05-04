@@ -29,6 +29,8 @@ func main() {
 
 	server_func.DBInit(connect) // Инициализация базы данных
 
+	http.HandleFunc("/",server_func.Authentication(server_func.Index))
+
 	if installmod {
 		http.HandleFunc("/install",server_func.Install)// Инициализация настроек
 	}
@@ -41,7 +43,9 @@ func main() {
 		http.HandleFunc("/generate_certificate",server_func.Authentication(server_func.GenerateCertificate))// Создать сертификат
 		http.HandleFunc("/get_certificate",server_func.Authentication(server_func.GetCertificate))// Создать сертификат
 
-    err = http.ListenAndServe(host, nil) // задаем слушать порт
+	http.HandleFunc("/journal",server_func.Authentication(server_func.Journal))// Настройки прокси сервера
+
+    err = http.ListenAndServe(host, nil) // Указываем адресс и порт
 	if err != nil {
         log.Fatal("ListenAndServe: ", err)
     }

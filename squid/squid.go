@@ -134,3 +134,16 @@ func CreateCertificate() error {
 
 	return err
 }
+
+func Status () string {
+	cmd:=exec.Command("systemctl","is-active","squid.service")
+	stdout, _ := cmd.Output()
+	tmp:=string(stdout)
+	return tmp[0:len(tmp)-1]
+}
+
+func Journal () string {
+	cmd:=exec.Command("journalctl","-b","-u","squid.service")
+	stdout, _ := cmd.Output()
+	return string(stdout)
+}

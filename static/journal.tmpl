@@ -1,0 +1,15 @@
+{{template "base" .}}
+
+{{define "title"}}Состояние служб{{end}}
+
+{{define "main"}}
+
+<h1>Squid<h1>
+
+<div style="height:500px; width:100%; border:2px solid #eeeeee; overflow:auto;white-space:pre;">
+<samp>
+{{ .squid }}
+</samp>
+</div>
+
+{{end}}

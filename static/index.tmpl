@@ -1,0 +1,9 @@
+{{template "base" .}}
+
+{{define "title"}}Doplom Server{{end}}
+
+{{define "main"}}
+
+<h3>Squid {{ if eq .squid "active" }}&#128994;{{ end }} {{ if eq .squid "failed" }}&#128308;{{ end }} {{ if eq .squid "inactive" }}&#9898;{{ end }}  <h3>
+
+{{end}}
