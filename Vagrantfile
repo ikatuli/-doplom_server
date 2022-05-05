@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
 
   # Обновление системы
    config.vm.provision "shell", inline: <<-SHELL
-      pacman -Suy  gcc-go postgresql squid openssl --noconfirm
+      pacman -Suy gcc-go postgresql squid openssl git base-devel --noconfirm
       yes | pacman -Scc
    SHELL
 
@@ -78,5 +78,32 @@ WantedBy=multi-user.target" > /etc/systemd/system/doplom.service
    SHELL
 
    config.vm.provision "shell", inline: "systemctl enable squid.service --now"
+
+   #Собираем e2guardian
+   config.vm.provision "shell", inline: <<-SHELL
+    mkdir /tmp/e2guardian
+    cd /tmp/e2guardian/
+    echo "[Unit]
+Description=E2guardian web filtering
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/bin/e2guardian
+
+[Install]
+WantedBy=multi-user.target" > /tmp/e2guardian/e2guardian.service
+
+    echo "post_install() {
+chown -R nobody:nobody /var/log/e2guardian
+}" > /tmp/e2guardian/e2guardian.install
+
+
+   cp /app/e2guardian_PKGBUILD /tmp/e2guardian/PKGBUILD
+   chown vagrant:vagrant -R /tmp/e2guardian/
+   sudo -u vagrant makepkg 
+   pacman -U e2guardian-v5.4.3r* --noconfirm
+   systemctl status e2guardian
+   SHELL
 
 end

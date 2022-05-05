@@ -1,0 +1,60 @@
+pkgname=e2guardian
+pkgver=v5.4.3r.r86.g96def405 
+pkgrel=1
+pkgdesc="Fork of dansguardian, an open source web content filter. It filters the actual content of pages based on many methods including phrase matching, request header and URL filtering, etc. It does not purely filter based on a banned list of sites."
+url="http://e2guardian.org"
+arch=('i686' 'x86_64' 'armv6h' 'arm' 'armv7h')
+license=('GPL2')
+makedepends=('grep' 'gzip' 'zlib' 'automake' 'autoconf' 'git')
+depends=('pcre' 'perl')
+optdepends=('squid' 'clamav' 'c-icap')
+conflicts=('dansguardian' 'dansguardian-dev')
+install=${pkgname}.install
+source=("$pkgname::git+https://github.com/e2guardian/e2guardian.git"
+        e2guardian.service
+        e2guardian.install)
+sha1sums=( 'SKIP'
+          'a4179286aa0d0bf3bb71f5459075a02ceaf0d518'
+          'ec12f2fde5433714caccd2e1ffec0e13c9f0eb31')
+
+pkgver() {
+  cd ${srcdir}/${pkgname}
+  git describe --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+build() {
+  cd ${srcdir}/${pkgname}
+  autoupdate
+  ./autogen.sh
+  ./configure --prefix="/usr" --enable-pcre --enable-locallists --enable-sslmitm=yes \
+	      --enable-icap --enable-commandline= --enable-email --enable-trickledm \
+              --sysconfdir=/etc --localstatedir=/var --enable-email --enable-clamd \
+              --sbindir=/usr/bin
+  make
+}
+
+package() {
+  cd ${srcdir}/${pkgname}
+  make DESTDIR=${pkgdir} install
+  rm -r ${pkgdir}/var/run
+  install -d ${pkgdir}/usr/bin 
+  install -D data/scripts/e2guardian ${pkgdir}/etc/logrotate.d/e2guardian
+  install -D -m644 ${srcdir}/e2guardian.service ${pkgdir}/usr/lib/systemd/system/e2guardian.service
+}
+
+backup=(etc/e2guardian/contentscanners/commandlinescan.conf
+etc/e2guardian/contentscanners/icapscan.conf
+etc/e2guardian/contentscanners/clamdscan.conf
+etc/e2guardian/preauth.story
+etc/e2guardian/site.story
+etc/e2guardian/common.story
+etc/e2guardian/examplef1.story
+etc/e2guardian/e2guardianf1.conf
+etc/e2guardian/e2guardian.conf
+etc/e2guardian/authplugins/pf-basic.conf
+etc/e2guardian/authplugins/port.conf
+etc/e2guardian/authplugins/proxy-digest.conf
+etc/e2guardian/authplugins/ip.conf
+etc/e2guardian/authplugins/ident.conf
+etc/e2guardian/authplugins/proxy-basic.conf
+etc/e2guardian/downloadmanagers/default.conf)
