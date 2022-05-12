@@ -106,4 +106,11 @@ chown -R nobody:nobody /var/log/e2guardian
    systemctl status e2guardian
    SHELL
 
+   # Делаем копии конфигурации
+   config.vm.provision "shell", inline: <<-SHELL
+     cp /etc/e2guardian/e2guardian.conf /etc/e2guardian/e2guardian.conf.old
+     cp /etc/squid/squid.conf /etc/squid/squid.conf.old
+   SHELL
+
+
 end

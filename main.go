@@ -34,6 +34,7 @@ func main() {
 	if installmod {
 		http.HandleFunc("/install",server_func.Install)// Инициализация настроек
 	}
+	http.HandleFunc("/service",server_func.Authentication(server_func.Service))// Управление сервисами
 	
 	http.HandleFunc("/account",server_func.Authentication(server_func.Account)) //Аккаунт
 		http.HandleFunc("/create_user",server_func.Authentication(server_func.CreateUserUI))// Создание пользователя
@@ -44,6 +45,8 @@ func main() {
 		http.HandleFunc("/get_certificate",server_func.Authentication(server_func.GetCertificate))// Создать сертификат
 
 	http.HandleFunc("/journal",server_func.Authentication(server_func.Journal))// Настройки прокси сервера
+
+	http.HandleFunc("/e2guardian_config",server_func.Authentication(server_func.E2guardianConfig))// Настройки прокси сервера
 
     err = http.ListenAndServe(host, nil) // Указываем адресс и порт
 	if err != nil {

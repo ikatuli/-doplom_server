@@ -11,6 +11,7 @@ import(
 	//Мои куски кода
 	"doplom_server/user"
 	"doplom_server/squid"
+	"doplom_server/e2guardian"
 )
 
 var db (*sql.DB) //Глобальная переменная для базы данных
@@ -37,6 +38,13 @@ func DBInit (connect string) { //Создаём в базе таблицы
         fmt.Println("Error ", err.Error())
 		panic(err)
     }
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS etoguardian (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
+
+	if err != nil {
+        fmt.Println("Error ", err.Error())
+		panic(err)
+    }
 }
 
 func DbClose () {
@@ -52,6 +60,7 @@ func Index (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 
 	var status = map[string]string {
 		"squid": squid.Status(),
+		"e2guardian": e2guardian.Status(),
 	}
 
 	t.Execute(w, status)
@@ -210,9 +219,11 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		if _, err:= conf["Cache"]; !err { conf ["Cache"] = "64"	}
 		if _, err:= conf["MaximumObjectSize"]; !err { conf ["MaximumObjectSize"] = "10"	}
 		if _, err:= conf["SSL"]; !err { conf ["SSL"] = ""	}
+		if _, err:= conf["e2guardian"]; !err { conf ["e2guardian"] = ""	}
 
 		//Роль пользователя
 		conf ["role"] = userProfile.Role
+		conf["on"] = squid.Status()
 
 		files := []string{
 			"./static/squid_config.tmpl",
@@ -316,11 +327,122 @@ func Journal (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 
 	var status = map[string]string {
 		"squid": squid.Journal(),
+		"e2guardian": e2guardian.Journal(),
 	}
 
 	t.Execute(w, status)
 	} else {
 		report(w,"Sorry, only GET method are supported.")
+	}
+	return
+}
+
+func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	switch r.Method {
+	case "GET":
+		rows, err:=db.Query("SELECT * FROM etoguardian;")
+		if err != nil {	fmt.Println(err)}
+
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из запроса
+		var id string;var parameter string;var value string;
+		for rows.Next() {
+			if err = rows.Scan(&id,&parameter,&value); err != nil {
+				fmt.Println(err)
+			}
+			conf[parameter] = value
+		}
+
+		conf["on"] = e2guardian.Status()
+
+		//Вносим значение по умолчанию
+		//if _, err:= conf["Port"]; !err { conf ["Port"] = "3128"	}
+		
+		files := []string{
+			"./static/e2guardian_config.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, nil)
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из формы все параметры
+		for parameter, value:=range r.Form {
+			conf[parameter]=value[0]
+		}
+		
+		//Сохраняем в базу данных все параметры
+		for parameter, value:=range conf {
+			_, err = db.Exec("INSERT INTO etoguardian (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;",parameter,value)
+			if err != nil {fmt.Println(err)}
+		}
+
+		err=e2guardian.CreateConfig(conf)
+
+		if err != nil {
+			report(w,fmt.Sprintf("Ошибка запуска прокси сервера: %v", err))
+			return
+		} else {
+			report(w,"Настройки прокси сервера обновлены")
+		}
+
+
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
+}
+
+func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	if r.Method == "POST" {
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		var err1 error
+		var err2 error
+		
+		switch r.FormValue("service") {
+			case "e2guardian":
+				if  r.FormValue("on") == "on"{
+					err1=e2guardian.Start("enable")
+					err2=e2guardian.Start("start")
+				} else {
+					err1=e2guardian.Start("stop")
+					err2=e2guardian.Start("disable")
+				}
+			case "squid":
+				if  r.FormValue("on") == "on"{
+					err1=squid.Start("enable")
+					err2=squid.Start("start")
+				} else {
+					err1=squid.Start("stop")
+					err2=squid.Start("disable")
+				}
+		}
+
+		if err1 != nil || err2 != nil {
+			report(w,fmt.Sprintf("Действие не выполнено: %v , %v", err1, err2))
+			return
+		}
+		
+		report(w,"Действие выполнено")
+	} else {
+		report(w,"Sorry, only POST method are supported.")
 	}
 	return
 }

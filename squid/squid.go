@@ -90,6 +90,20 @@ refresh_pattern ^gopher:    1440    0%  1440
 refresh_pattern -i (/cgi-bin/|\?) 0 0%  0
 refresh_pattern .       0   20% 4320
 `)
+
+	if conf["e2guardian"] !="" {
+		f.WriteString(`
+# Подключение e2guardian
+icap_enable on
+icap_service service_req reqmod_precache bypass=0 icap://127.0.0.1:1344/request
+icap_service service_resp respmod_precache bypass=0 icap://127.0.0.1:1344/response
+adaptation_access service_req allow all
+adaptation_access service_resp allow all
+icap_send_client_ip on
+icap_send_client_username on
+adaptation_masterx_shared_names X-ICAP-E2G
+`)
+	}
     //Почему внешная команда, а н os.Rename?
 	//Потому что /etc/ может находится в другой файловой системе, чем среда исполнения.
 	err = exec.Command("mv","./configuration/squid.conf", "/etc/squid/squid.conf").Run()
@@ -98,8 +112,8 @@ refresh_pattern .       0   20% 4320
     }
 
 	//Перезагружаем прокси сервер 
-	err = exec.Command("systemctl","restart", "squid.service").Run()
-    if err != nil {
+	err = Start("restart") 
+	if err != nil {
         return err
     }
 
@@ -146,4 +160,10 @@ func Journal () string {
 	cmd:=exec.Command("journalctl","-b","-u","squid.service")
 	stdout, _ := cmd.Output()
 	return string(stdout)
+}
+
+func Start (action string) error {
+	cmd:=exec.Command("systemctl",action,"squid.service")
+	_, err := cmd.Output()
+	return err
 }
