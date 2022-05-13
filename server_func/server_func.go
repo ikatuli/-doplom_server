@@ -12,6 +12,7 @@ import(
 	"doplom_server/user"
 	"doplom_server/squid"
 	"doplom_server/e2guardian"
+	"doplom_server/clamav"
 )
 
 var db (*sql.DB) //Глобальная переменная для базы данных
@@ -61,6 +62,7 @@ func Index (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 	var status = map[string]string {
 		"squid": squid.Status(),
 		"e2guardian": e2guardian.Status(),
+		"clamav": clamav.Status(),
 	}
 
 	t.Execute(w, status)
@@ -81,6 +83,7 @@ func Install(w http.ResponseWriter, r *http.Request){ //Первоначальн
 			http.ServeFile(w, r, "./static/install.html")
 		case "POST":
 			var err error
+			var test string
 			if err = r.ParseForm(); err != nil {
 			report(w,fmt.Sprintf("ParseForm() err: %v", err))
 			return}
@@ -88,11 +91,20 @@ func Install(w http.ResponseWriter, r *http.Request){ //Первоначальн
 			err=user.СreateUser(db,"admin",Password,"admin")			
 
 			if err != nil {
-				report(w,fmt.Sprintf("Ошибка создания пользователя: %v", err))
+				test=fmt.Sprintf("Ошибка создания пользователя: %v\n", err)
 			} else{
-				report(w,"Пользователь admin создан. Пожалуйста, отключите install mod в config.toml")
+				test="Пользователь admin создан.\n"
 			}
 
+			out,err:=clamav.Update()
+			
+			if err != nil {
+				test=test+fmt.Sprintf("База данных антивируса не обновлена: %v\n", out)
+			} else{
+				test=test+"База данных антивируса обновлена\n"
+			}
+			
+			report(w,test+"Пожалуйста, отключите install mod в config.toml")
 		default:
 			report(w,"Sorry, only GET and POST methods are supported.")
 		}
@@ -255,6 +267,8 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 			conf["SSL"] = "" //Обнуляем значение
 		}
 
+		if _, err:= conf["e2guardian"]; !err { conf ["e2guardian"] = ""}
+
 		//Сохраняем в базу данных все параметры
 		for parameter, value:=range conf {
 			_, err = db.Exec("INSERT INTO squid (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;",parameter,value)
@@ -328,6 +342,7 @@ func Journal (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 	var status = map[string]string {
 		"squid": squid.Journal(),
 		"e2guardian": e2guardian.Journal(),
+		"clamav": clamav.Journal(),
 	}
 
 	t.Execute(w, status)
@@ -338,6 +353,7 @@ func Journal (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 }
 
 func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
 	switch r.Method {
 	case "GET":
 		rows, err:=db.Query("SELECT * FROM etoguardian;")
@@ -354,11 +370,11 @@ func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.
 			}
 			conf[parameter] = value
 		}
-
+		
 		conf["on"] = e2guardian.Status()
 
 		//Вносим значение по умолчанию
-		//if _, err:= conf["Port"]; !err { conf ["Port"] = "3128"	}
+		if _, err:= conf["ClamAV"]; !err { conf ["ClamAV"] = ""}
 		
 		files := []string{
 			"./static/e2guardian_config.tmpl",
@@ -366,7 +382,7 @@ func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.
 		}
 
 		t, _ := template.ParseFiles(files...)
-		t.Execute(w, nil)
+		t.Execute(w, conf)
 	case "POST":
 		var err error
 		if err = r.ParseForm(); err != nil {
@@ -381,7 +397,9 @@ func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.
 		for parameter, value:=range r.Form {
 			conf[parameter]=value[0]
 		}
-		
+
+		if _, err:= conf["ClamAV"]; !err { conf ["ClamAV"] = ""}
+
 		//Сохраняем в базу данных все параметры
 		for parameter, value:=range conf {
 			_, err = db.Exec("INSERT INTO etoguardian (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;",parameter,value)
@@ -403,6 +421,44 @@ func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.
 	}
 	return
 }
+
+func ClamavConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	switch r.Method {
+	case "GET":
+
+		var conf = map[string]string {
+		"on": clamav.Status(),
+		}
+
+		files := []string{
+			"./static/clamav_config.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, conf)
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		out,err:=clamav.Update()
+			
+		if err != nil {
+			report(w,fmt.Sprintf("База данных антивируса не обновлена: %v\n", out))
+		} else{
+			report(w,"База данных антивируса обновлена\n")
+		}
+
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
+}
+
 
 func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
@@ -432,6 +488,14 @@ func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 				} else {
 					err1=squid.Start("stop")
 					err2=squid.Start("disable")
+				}
+			case "clamav":
+				if  r.FormValue("on") == "on"{
+					err1=clamav.Start("enable")
+					err2=clamav.Start("start")
+				} else {
+					err1=clamav.Start("stop")
+					err2=clamav.Start("disable")
 				}
 		}
 

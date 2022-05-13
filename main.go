@@ -46,7 +46,9 @@ func main() {
 
 	http.HandleFunc("/journal",server_func.Authentication(server_func.Journal))// Настройки прокси сервера
 
-	http.HandleFunc("/e2guardian_config",server_func.Authentication(server_func.E2guardianConfig))// Настройки прокси сервера
+	http.HandleFunc("/e2guardian_config",server_func.Authentication(server_func.E2guardianConfig))// Настройки фильтр сервера
+
+	http.HandleFunc("/clamav_config",server_func.Authentication(server_func.ClamavConfig))// Настройки антивируса
 
     err = http.ListenAndServe(host, nil) // Указываем адресс и порт
 	if err != nil {

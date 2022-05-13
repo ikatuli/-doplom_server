@@ -3,8 +3,6 @@
 {{define "title"}}Настройки e2guardian{{end}}
 
 {{define "main"}}
-<h1>Режим</h1>
-		
 <h1>Настройки e2guardian</h1>
 		<div>
 			<form method="POST" action="/service"> 
@@ -15,8 +13,8 @@
 		</div>
 
 		<div>
-			<p>Опции временно не доступны</p>
 			<form method="POST" action="/e2guardian_config"> 
+				<p><label>Подключить ClamAV</label><input type="checkbox" name="ClamAV" value="ClamAV" {{ if .ClamAV -}} checked {{end}}> </p>
 				<input type="reset" value="Сбросить настройки" /><input type="submit" value="Сохранить" />
 			</form>
 		</div>

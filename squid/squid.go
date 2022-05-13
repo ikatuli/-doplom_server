@@ -164,6 +164,6 @@ func Journal () string {
 
 func Start (action string) error {
 	cmd:=exec.Command("systemctl",action,"squid.service")
-	_, err := cmd.Output()
+	err := cmd.Run()
 	return err
 }

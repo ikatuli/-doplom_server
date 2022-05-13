@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
 
   # Обновление системы
    config.vm.provision "shell", inline: <<-SHELL
-      pacman -Suy gcc-go postgresql squid openssl git base-devel --noconfirm
+      pacman -Suy gcc-go postgresql squid openssl git base-devel clamav --noconfirm
       yes | pacman -Scc
    SHELL
 
@@ -110,7 +110,12 @@ chown -R nobody:nobody /var/log/e2guardian
    config.vm.provision "shell", inline: <<-SHELL
      cp /etc/e2guardian/e2guardian.conf /etc/e2guardian/e2guardian.conf.old
      cp /etc/squid/squid.conf /etc/squid/squid.conf.old
+     cp /etc/clamav/freshclam.conf /etc/clamav/freshclam.conf.old
+     cp /etc/e2guardian/contentscanners/clamdscan.conf /etc/e2guardian/contentscanners/clamdscan.conf.old
    SHELL
 
-
+   config.vm.provision "shell", inline: <<-SHELL
+    sed -i 's|database.clamav.net|https://packages.microsoft.com/clamav/|g' /etc/clamav/freshclam.conf
+    freshclam
+   SHELL
 end

@@ -1,0 +1,21 @@
+{{template "base" .}}
+
+{{define "title"}}Настройки clamav{{end}}
+
+{{define "main"}}
+		
+<h1>Настройки clamav</h1>
+		<div>
+			<form method="POST" action="/service"> 
+				<p><label>Включить</label><input type="checkbox" name="on" value="on" {{ if eq .on "active" }} checked {{end}} > </p>
+				<input type="hidden" name="service" value="clamav">
+				<input type="submit" value="Выполнить"/>
+			</form>
+		</div>
+
+		<div>
+			<form method="POST" action="/clamav_config"> 
+				<input type="submit" value="Обновить базу данных" />
+			</form>
+		</div>
+{{end}}

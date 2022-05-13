@@ -27,7 +27,13 @@ defaultfiltergroup = 1
 	f.WriteString(`
 ### NAMES_PATHS section
 servername = 'doplom"
-languagedir = '/usr/share/e2guardian/languages'
+languagedir = '/usr/share/e2guardian/languages'`)
+
+if conf["ClamAV"] !="" {
+	f.WriteString(`
+   daemongroup = 'clamav'
+   `)}
+f.WriteString(`
 ### END of NAMES_PATHS section
 `) 
 
@@ -91,12 +97,35 @@ f.WriteString(`
 ### END of LIST_SETTINGS section
 `)
 
+
+if conf["ClamAV"] !="" {
 f.WriteString(`
 ### AV_SCANNERS section
 ###
+contentscannertimeout = 60
+contentscanner = '/etc/e2guardian/contentscanners/clamdscan.conf'
 ###
 ### END of AV_SCANNERS section
 `)
+
+	f1, err := os.Create("./configuration/clamdscan.conf")
+
+	if err != nil {
+		return err
+	}
+	
+	f1.WriteString(`
+plugname = 'clamdscan'
+clamdudsfile = '/run/clamav/clamd.ctl'
+`)
+	f1.Close()
+	err = exec.Command("mv","./configuration/clamdscan.conf", "/etc/e2guardian/contentscanners/clamdscan.conf").Run()
+    if err != nil {
+        return err
+    }
+
+}
+
 
 f.WriteString(`
 ### HEADER section
@@ -144,13 +173,6 @@ f.WriteString(`
         return err
     }
 
-	f1, err := os.Create("./configuration/e2guardianf1.conf")
-
-	if err != nil {
-		return err
-	}
-	defer f1.Close()
-
 	//Перезагружаем прокси сервер 
 	err = Start("restart") 
 	if err != nil {
@@ -178,6 +200,6 @@ func Journal () string {
 
 func Start (action string) error {
 	cmd:=exec.Command("systemctl",action,"e2guardian.service")
-	_, err := cmd.Output()
+	err := cmd.Run()
 	return err
 }
