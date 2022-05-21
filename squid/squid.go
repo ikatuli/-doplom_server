@@ -73,6 +73,13 @@ http_access deny all
 		} else {
 			fmt.Fprintln(f,"http_port ",conf["Port"])
 		}
+
+	if conf["DNS"] !="" {
+		f.WriteString(`
+dns_nameservers 127.0.0.1
+		`)
+	}
+
 	fmt.Fprintln(f,"#Директория для кеша")
 	fmt.Fprintln(f,"cache_dir ufs /var/cache/squid ",conf["Cache"],"16 256")
 	fmt.Fprintln(f,"#Максимальный размер кешируемого объекта")

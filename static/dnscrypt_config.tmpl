@@ -1,0 +1,23 @@
+{{template "base" .}}
+
+{{define "title"}}Настройки Dnscrypt{{end}}
+
+{{define "main"}}
+<h1>Настройки Dnscrypt</h1>
+		<div>
+			<form method="POST" action="/service"> 
+				<p><label>Включить</label><input type="checkbox" name="on" value="on" {{ if eq .on "active" }} checked {{end}} > </p>
+				<input type="hidden" name="service" value="dnscrypt">
+				<input type="submit" value="Выполнить"/>
+			</form>
+		</div>
+
+		<div>
+			<form method="POST" action="/dnscrypt_config"> 
+				<p><label>IPv6</label><input type="checkbox" name="IPv6" value="IPv6" {{ if .IPv6 -}} checked {{end}}> </p>
+				<p><label>Время ожидания ответа</label><input required name="Timeout" type="number" max="10000" min="5000" value={{ .Timeout}} /></p>
+				<p><label>Размер кеша</label><input required name="Cache" type="number" value={{ .Cache}} /></p>
+				<input type="reset" value="Сбросить настройки" /><input type="submit" value="Сохранить" />
+			</form>
+		</div>
+{{end}}

@@ -13,6 +13,7 @@ import(
 	"doplom_server/squid"
 	"doplom_server/e2guardian"
 	"doplom_server/clamav"
+	"doplom_server/dnscrypt"
 )
 
 var db (*sql.DB) //Глобальная переменная для базы данных
@@ -24,8 +25,6 @@ func DBInit (connect string) { //Создаём в базе таблицы
         panic(err)
     }
 
-	//fmt.Printf("%T\n", db)
-
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS users (id SERIAL,login character varying(20) UNIQUE,password character(60),role smallint);`)
 
 	if err != nil {
@@ -36,11 +35,18 @@ func DBInit (connect string) { //Создаём в базе таблицы
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS squid (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
 
 	if err != nil {
-        fmt.Println("Error ", err.Error())
+	fmt.Println("Error ", err.Error())
 		panic(err)
     }
 
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS etoguardian (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
+	
+	if err != nil {
+        fmt.Println("Error ", err.Error())
+	panic(err)
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS dnscrypt (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
 
 	if err != nil {
         fmt.Println("Error ", err.Error())
@@ -63,6 +69,7 @@ func Index (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 		"squid": squid.Status(),
 		"e2guardian": e2guardian.Status(),
 		"clamav": clamav.Status(),
+		"dnscrypt": dnscrypt.Status(),
 	}
 
 	t.Execute(w, status)
@@ -232,6 +239,7 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		if _, err:= conf["MaximumObjectSize"]; !err { conf ["MaximumObjectSize"] = "10"	}
 		if _, err:= conf["SSL"]; !err { conf ["SSL"] = ""	}
 		if _, err:= conf["e2guardian"]; !err { conf ["e2guardian"] = ""	}
+		if _, err:= conf["DNS"]; !err { conf ["DNS"] = ""	}
 
 		//Роль пользователя
 		conf ["role"] = userProfile.Role
@@ -268,6 +276,7 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		}
 
 		if _, err:= conf["e2guardian"]; !err { conf ["e2guardian"] = ""}
+		if _, err:= conf["DNS"]; !err { conf ["DNS"] = ""	}
 
 		//Сохраняем в базу данных все параметры
 		for parameter, value:=range conf {
@@ -497,6 +506,14 @@ func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 					err1=clamav.Start("stop")
 					err2=clamav.Start("disable")
 				}
+			case "dnscrypt":
+				if  r.FormValue("on") == "on"{
+					err1=dnscrypt.Start("enable")
+					err2=dnscrypt.Start("start")
+				} else {
+					err1=dnscrypt.Start("stop")
+					err2=dnscrypt.Start("disable")
+				}
 		}
 
 		if err1 != nil || err2 != nil {
@@ -507,6 +524,80 @@ func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 		report(w,"Действие выполнено")
 	} else {
 		report(w,"Sorry, only POST method are supported.")
+	}
+	return
+}
+
+func DnscryptConfig (w http.ResponseWriter, r *http.Request, userProfile  user.User) {
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+		switch r.Method {
+	case "GET":
+		rows, err:=db.Query("SELECT * FROM dnscrypt;")
+		if err != nil {	fmt.Println(err)}
+
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из запроса
+		var id string;var parameter string;var value string;
+		for rows.Next() {
+			if err = rows.Scan(&id,&parameter,&value); err != nil {
+				fmt.Println(err)
+			}
+			conf[parameter] = value
+		}
+		
+		conf["on"] = dnscrypt.Status()
+
+		//Вносим значение по умолчанию
+		if _, err:= conf["ClamAV"]; !err { conf ["ClamAV"] = ""}
+		if _, err:= conf["IPv6"]; !err { conf ["IPv6"] = ""}
+		if _, err:= conf["Cache"]; !err { conf ["Cache"] = "4096"}
+		if _, err:= conf["Timeout"]; !err { conf ["Timeout"] = "5000"}
+		
+		files := []string{
+			"./static/dnscrypt_config.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, conf)
+
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из формы все параметры
+		for parameter, value:=range r.Form {
+			conf[parameter]=value[0]
+		}
+
+		if _, err:= conf["ClamAV"]; !err { conf ["ClamAV"] = ""}
+		if _, err:= conf["IPv6"]; !err { conf ["IPv6"] = ""}
+
+		//Сохраняем в базу данных все параметры
+		for parameter, value:=range conf {
+			_, err = db.Exec("INSERT INTO dnscrypt (parameter,value) VALUES ($1,$2) ON CONFLICT (parameter) DO UPDATE SET value = $2;",parameter,value)
+			if err != nil {fmt.Println(err)}
+		}
+
+		err=dnscrypt.CreateConfig(conf)
+
+		if err != nil {
+			report(w,fmt.Sprintf("Ошибка запуска прокси сервера: %v", err))
+			return
+		} else {
+			report(w,"Настройки прокси сервера обновлены")
+		}		
+
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
 	}
 	return
 }

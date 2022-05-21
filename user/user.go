@@ -15,11 +15,6 @@ type User struct {
 
 var Role = []string{"admin","user"} //Список ролей
 
-
-/*func GetRole() []string { //Передаю константу со списком ролей
-	return role
-}*/
-
 func FindUser(db *sql.DB,login string) User{
 	var userProfile User
 	//Запрашиваем хеш аккаунта

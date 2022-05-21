@@ -8,10 +8,6 @@ import (
 	"doplom_server/server_func"
 )
 
-func finished() {
-    fmt.Println("Finished finding largest")
-}
-
 func main() {
 	config, err := toml.LoadFile("config.toml") //Подключаем конфиг
 
@@ -49,6 +45,8 @@ func main() {
 	http.HandleFunc("/e2guardian_config",server_func.Authentication(server_func.E2guardianConfig))// Настройки фильтр сервера
 
 	http.HandleFunc("/clamav_config",server_func.Authentication(server_func.ClamavConfig))// Настройки антивируса
+
+	http.HandleFunc("/dnscrypt_config",server_func.Authentication(server_func.DnscryptConfig))// Настройки dns
 
     err = http.ListenAndServe(host, nil) // Указываем адресс и порт
 	if err != nil {

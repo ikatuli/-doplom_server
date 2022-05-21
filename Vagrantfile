@@ -9,7 +9,7 @@ Vagrant.configure("2") do |config|
 
   # Базовый образ
   # config.vm.box = "archlinux/archlinux"
-  config.vm.box = "./images/Arch-Linux-x86_64-virtualbox-20220418.0.box"
+  config.vm.box = "./images/Arch-Linux-x86_64-virtualbox.box"
 
   # Название хоста
   config.vm.hostname = "Doplom"
@@ -21,7 +21,7 @@ Vagrant.configure("2") do |config|
   # config.vm.box_check_update = false
 
   # Открываем порт 9000 только для локальных запросов
-  config.vm.network "forwarded_port", guest: 3128, host: 3128, host_ip: "127.0.0.1"
+  config.vm.network "forwarded_port", guest: 3128, host: 3128
   config.vm.network "forwarded_port", guest: 9000, host: 9000, host_ip: "127.0.0.1"
 
   # Share an additional folder to the guest VM. The first argument is
@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
 
   # Обновление системы
    config.vm.provision "shell", inline: <<-SHELL
-      pacman -Suy gcc-go postgresql squid openssl git base-devel clamav --noconfirm
+      pacman -Suy gcc-go postgresql squid openssl git base-devel clamav dnscrypt-proxy --noconfirm
       yes | pacman -Scc
    SHELL
 
@@ -77,8 +77,6 @@ WantedBy=multi-user.target" > /etc/systemd/system/doplom.service
      systemctl enable doplom.service --now
    SHELL
 
-   config.vm.provision "shell", inline: "systemctl enable squid.service --now"
-
    #Собираем e2guardian
    config.vm.provision "shell", inline: <<-SHELL
     mkdir /tmp/e2guardian
@@ -103,7 +101,6 @@ chown -R nobody:nobody /var/log/e2guardian
    chown vagrant:vagrant -R /tmp/e2guardian/
    sudo -u vagrant makepkg 
    pacman -U e2guardian-v5.4.3r* --noconfirm
-   systemctl status e2guardian
    SHELL
 
    # Делаем копии конфигурации
@@ -112,6 +109,7 @@ chown -R nobody:nobody /var/log/e2guardian
      cp /etc/squid/squid.conf /etc/squid/squid.conf.old
      cp /etc/clamav/freshclam.conf /etc/clamav/freshclam.conf.old
      cp /etc/e2guardian/contentscanners/clamdscan.conf /etc/e2guardian/contentscanners/clamdscan.conf.old
+     cp /etc/dnscrypt-proxy/dnscrypt-proxy.toml /etc/dnscrypt-proxy/dnscrypt-proxy.toml.old
    SHELL
 
    config.vm.provision "shell", inline: <<-SHELL
