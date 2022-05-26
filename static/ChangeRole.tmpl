@@ -1,0 +1,17 @@
+{{template "base" .}}
+
+{{define "title"}}Cмена роли {{.Login}}{{end}}
+
+{{define "main"}}
+		<div>
+			<form method="POST" action="/change_role"> 
+				<h1>Укажите новую роль для пользователя {{.Login}}</h1>
+				<input type="hidden" name="login" value={{.Login}} />
+				<select required name="role">
+				<option disabled selected>{{.Role}}</option>
+				{{range $k:= .RoleList}}<option value={{$k}}>{{$k}}</option>{{end}}
+				</select>
+				<input type="submit" value="Сохранить" />
+			</form>
+		</div>
+{{end}}

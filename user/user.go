@@ -22,6 +22,7 @@ func FindUser(db *sql.DB,login string) User{
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer rows.Close()
 
 	//Вытаскиваем из запроса хеш
 	var password []byte
@@ -64,15 +65,36 @@ func СreateUser(db *sql.DB, login string, passwd string, role string) error {
 	return err
 }
 
-func ChangeUser(db *sql.DB, login string, passwd string) error {
+func ChangePasswd(db *sql.DB, login string, passwd string) error {
 	var err error
 	hashPassword, err := bcrypt.GenerateFromPassword([]byte(passwd), 14) //Генерируем пароль
 
 	if err != nil {
         fmt.Println(err)
     }
+
 	//Записываем пароль в базу данных
 	_, err = db.Exec("UPDATE users SET password = $2 WHERE login = $1;",login,hashPassword)
+
+	if err != nil {
+        fmt.Println(err)
+    }
+	
+	return err
+}
+
+func ChangeRole(db *sql.DB, login string, role string) error {
+	var role_int int
+	var err error
+
+	for i, v := range Role{ //Поиск номера роли
+		if role == v {
+			role_int=i
+			break
+		}
+	}
+	//Записываем роль в базу данных
+	_, err = db.Exec("UPDATE users SET role = $2 WHERE login = $1;",login,role_int)
 
 	if err != nil {
         fmt.Println(err)
@@ -85,5 +107,18 @@ func ChangeUser(db *sql.DB, login string, passwd string) error {
 func CheckCredentials(userProfile User, password string) error { //Сопоставляем пароль и хеш
 	pw := []byte(password)
 	err := bcrypt.CompareHashAndPassword(userProfile.HashPassword,pw)
+	return err
+}
+
+func DeleteUser(db *sql.DB, login string) error {
+	var err error
+	
+	//Записываем пароль в базу данных
+	_, err = db.Exec("DELETE FROM users WHERE login=$1;",login)
+
+	if err != nil {
+        fmt.Println(err)
+    }
+
 	return err
 }

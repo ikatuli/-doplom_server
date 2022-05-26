@@ -1,0 +1,22 @@
+{{template "base" .}}
+
+{{define "title"}}Изменить пользователя{{end}}
+
+{{define "main"}}
+		<div>
+			<form method="POST" action="/change_users"> 
+				<select required name="login">
+					<option disabled selected>Выберете пользователя</option>
+					{{range $k:= .}}<option value={{$k}}>{{$k}}</option>{{end}}
+				</select>
+					<select required name="action">
+					<option disabled selected>Выберете действие</option>
+					<option value="delete">Удалить</option>
+					<option value="password">Изменить пароль</option>
+					<option value="role">Изменить роль</option>
+				</select>
+
+				</p><input type="submit" value="Выполнить" /></p>
+			</form>
+		</div>
+{{end}}

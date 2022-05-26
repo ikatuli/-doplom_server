@@ -145,6 +145,56 @@ func CreateUserUI(w http.ResponseWriter, r *http.Request, userProfile  user.User
 		}
 }
 
+func ChangeUsers(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Создаём пользователя
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	switch r.Method {
+		case "GET":
+			rows, err:=db.Query("SELECT login FROM users;")
+			if err != nil {	fmt.Println(err)}
+			defer rows.Close()
+			//Инициализируем список пользователь, сразу создавая 2 ячейки.
+			users :=make([]string, 0, 2)
+			//Вытаскиваем из запроса
+			var login string;
+			for rows.Next() {
+				if err = rows.Scan(&login); err != nil {
+					fmt.Println(err)
+				}
+				users=append(users,login)
+			}
+
+			files := []string{
+						"./static/ChangeUsers.tmpl",
+						"./static/base.tmpl",
+					}
+			t, _ := template.ParseFiles(files...)
+			t.Execute(w, users)
+		case "POST":
+			var err error
+			if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return}
+			switch r.FormValue("action"){
+				case "delete":
+					err = user.DeleteUser(db, r.FormValue("login"))
+					if err != nil {
+						report(w,fmt.Sprintf("Ошибка удаления пользователя: %v", err))
+					} else{
+						report(w,fmt.Sprintf( "Пользователь %s удалён",r.FormValue("login")))
+					}
+				case "password":
+					http.Redirect(w, r, "/change_password?login="+r.FormValue("login"), http.StatusFound)
+				case "role":
+					http.Redirect(w, r, "/change_role?login="+r.FormValue("login"), http.StatusFound)
+				}
+
+			
+		default:
+			report(w,"Sorry, only GET and POST methods are supported.")
+		}
+}
+
+
 func Account(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Создаём пользователя
 	files := []string{
 						"./static/account.tmpl",
@@ -162,25 +212,77 @@ func ChangePassword(w http.ResponseWriter, r *http.Request, userProfile  user.Us
 			"./static/base.tmpl",
 		}
 		t, _ := template.ParseFiles(files...)
+
+		if (r.URL.RawQuery !="") && (userProfile.Role == "admin") {
+			userProfile.Login=r.URL.Query().Get("login")
+		}
+
 		t.Execute(w, userProfile.Login)
 	case "POST":
 		var err error
 		if err = r.ParseForm(); err != nil {
 			fmt.Fprintf(w, "ParseForm() err: %v", err)
 			return}
+		//Если запрос послал администратор, то можно подменить логин
+		//А иначе будет изменён пароль отправившего запрос пользователя.
+		if userProfile.Role == "admin" {
+			userProfile.Login=r.FormValue("login")
+		}
+
 		Password:= r.FormValue("passwd")
-		err=user.ChangeUser(db,userProfile.Login,Password)
+		err=user.ChangePasswd(db,userProfile.Login,Password)
 					
 		if err != nil {
-			report(w, fmt.Sprintf( "Ошибка при смене пароля: %v", err))
+			report(w, fmt.Sprintf( "Ошибка при изменении пароля: %v", err))
 		} else{
-			report(w,fmt.Sprintf("Пароль пользователя %s был изменён",userProfile.Login))
+			report(w,fmt.Sprintf("Пароль пользователя %s был изменении",userProfile.Login))
 		}
 	default:
 		report(w,"Sorry, only GET and POST methods are supported.")
 	}
 	return
 }
+
+func ChangeRole(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Меняем пароль
+	if userProfile.Role != "admin" {report(w,"Нет прав на доступ к этой странице");return}
+	switch r.Method {
+	case "GET":
+		files := []string{
+			"./static/ChangeRole.tmpl",
+			"./static/base.tmpl",
+		}
+		t, _ := template.ParseFiles(files...)
+
+		login:=r.URL.Query().Get("login")
+		Data := struct {
+			Login string
+			Role string
+			RoleList []string
+		}{
+			Login: login,
+			Role: user.FindUser(db,login).Role,
+			RoleList: user.Role,
+		}
+		t.Execute(w, Data)
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			fmt.Fprintf(w, "ParseForm() err: %v", err)
+			return}
+		
+		err=user.ChangePasswd(db,r.FormValue("login"),r.FormValue("role"))
+					
+		if err != nil {
+			report(w, fmt.Sprintf( "Ошибка при изменении роли: %v", err))
+		} else{
+			report(w,fmt.Sprintf("Роль пользователя %s была изменениа",r.FormValue("login")))
+		}
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
+}
+
 
 func Authentication(next func(http.ResponseWriter,*http.Request,user.User)) http.HandlerFunc { //Логинимся перед заходом на защищённые страницы
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +322,7 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 	case "GET":
 		rows, err:=db.Query("SELECT * FROM squid;")
 		if err != nil {	fmt.Println(err)}
+		defer rows.Close()
 
 		//Инициализируем переменные с данными о настройках
 		var conf = make(map[string]string)
@@ -367,6 +470,7 @@ func E2guardianConfig(w http.ResponseWriter, r *http.Request, userProfile  user.
 	case "GET":
 		rows, err:=db.Query("SELECT * FROM etoguardian;")
 		if err != nil {	fmt.Println(err)}
+		defer rows.Close()
 
 		//Инициализируем переменные с данными о настройках
 		var conf = make(map[string]string)
@@ -534,6 +638,7 @@ func DnscryptConfig (w http.ResponseWriter, r *http.Request, userProfile  user.U
 	case "GET":
 		rows, err:=db.Query("SELECT * FROM dnscrypt;")
 		if err != nil {	fmt.Println(err)}
+		defer rows.Close()
 
 		//Инициализируем переменные с данными о настройках
 		var conf = make(map[string]string)

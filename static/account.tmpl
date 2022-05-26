@@ -4,7 +4,10 @@
 
 {{define "main"}}
 <menu>
-{{ if eq . "admin"}}<li><a href="/create_user">Создать пользователя</a></li>{{ end }}
+{{ if eq . "admin"}}
+<li><a href="/create_user">Создать пользователя</a></li>
+<li><a href="/change_users">Изменить пользователя</a></li>
+{{ end }}
 <li><a href="/change_password">Изменить пароль</a></li>
 </menu>
 {{end}}
