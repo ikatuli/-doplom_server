@@ -18,7 +18,7 @@ var Role = []string{"admin","user"} //Список ролей
 func FindUser(db *sql.DB,login string) User{
 	var userProfile User
 	//Запрашиваем хеш аккаунта
-	rows, err:=db.Query("SELECT password,role FROM users WHERE login LIKE $1;",login)
+	rows, err:=db.Query("SELECT password,role FROM users WHERE login = $1;",login)
 	if err != nil {
 		fmt.Println(err)
 	}

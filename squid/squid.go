@@ -48,9 +48,13 @@ http_access deny CONNECT !SSL_ports
 http_access allow localhost manager
 http_access deny manager
 
-#
-#INSERT YOUR OWN RULE(S) HERE TO ALLOW ACCESS FROM YOUR CLIENTS
-#Не забыть удалить
+#Файл со списком заблокированных доменов
+acl deniedsites dstdomain "/etc/squid/deniedsites.squid"
+http_access deny deniedsites
+
+#Файл с фильтрацией по ключевым словам
+#acl keywords url_regex -i "/etc/squid/keywords.squid"
+#http_access deny keywords
 
 # Разрешаем доступ из локальной сети и локолхоста
 http_access allow localnet
@@ -162,6 +166,30 @@ func Status () string {
 	tmp:=string(stdout)
 	return tmp[0:len(tmp)-1]
 }
+
+func DeliteCache () error {
+	var err error
+	err = exec.Command("rm","-rf", "/var/cache/squid/[0-9]*").Run()
+	if err != nil {
+        return err
+	}
+	err = exec.Command("rm","-f", "/squid/cache/swap*").Run()
+	if err != nil {
+        return err
+    }
+	err = exec.Command("rm","-f", "/squid/cache/netdb*").Run()
+	if err != nil {
+        return err
+    }
+
+	err = exec.Command("rm","-f", "/squid/cache/*.log").Run()
+	if err != nil {
+        return err
+    }
+
+	return err
+}
+
 
 func Journal () string {
 	cmd:=exec.Command("journalctl","-b","-u","squid.service")

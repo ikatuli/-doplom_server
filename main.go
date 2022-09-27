@@ -50,6 +50,10 @@ func main() {
 
 	http.HandleFunc("/dnscrypt_config",server_func.Authentication(server_func.DnscryptConfig))// Настройки dns
 
+	http.HandleFunc("/rule",server_func.Authentication(server_func.RuleMain))// Настройки правил
+
+	http.HandleFunc("/rule_create",server_func.Authentication(server_func.RuleCreate))// Создание правил
+
     err = http.ListenAndServe(host, nil) // Указываем адресс и порт
 	if err != nil {
         log.Fatal("ListenAndServe: ", err)

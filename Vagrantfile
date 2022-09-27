@@ -1,6 +1,11 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
+#Параметры для создания базы данных
+dbname="test_bd"
+user="test_user"
+password="test_passwd"
+
 Vagrant.configure("2") do |config|
   
   # The most common configuration options are documented and commented below.
@@ -40,7 +45,9 @@ Vagrant.configure("2") do |config|
 
   # Обновление системы
    config.vm.provision "shell", inline: <<-SHELL
-      pacman -Suy gcc-go postgresql squid openssl git base-devel clamav dnscrypt-proxy --noconfirm
+      pacman -Sy
+      pacman -S archlinux-keyring --noconfirm
+      pacman -Su gcc-go postgresql squid openssl git base-devel clamav dnscrypt-proxy --noconfirm
       yes | pacman -Scc
    SHELL
 
@@ -58,8 +65,8 @@ Vagrant.configure("2") do |config|
    config.vm.provision "shell", inline: <<-SHELL
      sudo -u postgres initdb -E UTF8 -D /var/lib/postgres/data
      systemctl start postgresql.service 
-     sudo -u postgres psql --command "CREATE USER test_user WITH PASSWORD 'test';"
-     sudo -u postgres createdb -O test_user test_bd
+     sudo -u postgres psql --command "CREATE USER #{user} WITH PASSWORD '#{password}';"
+     sudo -u postgres createdb -O #{user} #{dbname}
      systemctl enable postgresql.service --now
    SHELL
 
@@ -100,7 +107,7 @@ chown -R nobody:nobody /var/log/e2guardian
    cp /app/e2guardian_PKGBUILD /tmp/e2guardian/PKGBUILD
    chown vagrant:vagrant -R /tmp/e2guardian/
    sudo -u vagrant makepkg 
-   pacman -U e2guardian-v5.4.3r* --noconfirm
+   pacman -U e2guardian*.pkg.tar.zst --noconfirm
    SHELL
 
    # Делаем копии конфигурации

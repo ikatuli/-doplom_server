@@ -8,12 +8,14 @@ import(
 	"errors" 
 	"database/sql" // пакет для работы с sql
 	_ "github.com/lib/pq" // пакет драйвера PostgreSQL
+	"strconv" //Преобразование чисел в строки и наоборот
 	//Мои куски кода
 	"doplom_server/user"
 	"doplom_server/squid"
 	"doplom_server/e2guardian"
 	"doplom_server/clamav"
 	"doplom_server/dnscrypt"
+	"doplom_server/rule"
 )
 
 var db (*sql.DB) //Глобальная переменная для базы данных
@@ -47,6 +49,20 @@ func DBInit (connect string) { //Создаём в базе таблицы
 	}
 
 	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS dnscrypt (id SERIAL,parameter character varying(25) UNIQUE,value character varying(25));`)
+
+	if err != nil {
+        fmt.Println("Error ", err.Error())
+		panic(err)
+    }
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS rule (id SERIAL,creator character varying(20),name character varying(20) UNIQUE);`)
+
+	if err != nil {
+        fmt.Println("Error ", err.Error())
+		panic(err)
+    }
+	
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS rule_domain (id SERIAL,rule_id integer UNIQUE, domain text);`)
 
 	if err != nil {
         fmt.Println("Error ", err.Error())
@@ -324,7 +340,7 @@ func SquidConfig(w http.ResponseWriter, r *http.Request, userProfile  user.User)
 		if err != nil {	fmt.Println(err)}
 		defer rows.Close()
 
-		//Инициализируем переменные с данными о настройках
+		//ИнGициализируем переменные с данными о настройках
 		var conf = make(map[string]string)
 
 		//Вытаскиваем из запроса
@@ -629,6 +645,7 @@ func Service(w http.ResponseWriter, r *http.Request, userProfile  user.User) {
 	} else {
 		report(w,"Sorry, only POST method are supported.")
 	}
+
 	return
 }
 
@@ -699,6 +716,142 @@ func DnscryptConfig (w http.ResponseWriter, r *http.Request, userProfile  user.U
 			return
 		} else {
 			report(w,"Настройки прокси сервера обновлены")
+		}		
+
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
+}
+
+func RuleMain(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Выбрать правило
+	switch r.Method {
+	case "GET":
+		rows, err:=db.Query("SELECT name FROM rule;")
+		if err != nil {	fmt.Println(err)}
+		defer rows.Close()
+
+		//Инициализируем переменные с данными о настройках
+		var rule_list = make([]string,0)
+
+		//Вытаскиваем имя из запроса
+		var name string;
+		for rows.Next() {
+			if err = rows.Scan(&name); err != nil {
+				fmt.Println(err)
+			}
+			rule_list= append(rule_list,name)
+		}
+
+		
+		files := []string{
+			"./static/rule_main.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, rule_list)
+
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		switch r.Form["action"][0] {
+			case "activate":
+				err= rule.Activate(db,r.Form["rule"][0])
+				if err != nil {
+					report(w,fmt.Sprintf("Активация правила завершено с ошибкой: %v", err))
+					return
+				} else {
+					report(w,"Правило активировано")
+				}
+			case "delete":
+				err= rule.DeleteRule(db,r.Form["rule"][0])
+				if err != nil {
+					report(w,fmt.Sprintf("Удаление правила завершено с ошибкой: %v", err))
+					return
+				} else {
+					report(w,"Правило удаленно")
+				}
+			}
+
+
+	default:
+		report(w,"Sorry, only GET and POST methods are supported.")
+	}
+	return
+}
+
+func RuleCreate(w http.ResponseWriter, r *http.Request, userProfile  user.User){ //Выбрать правило
+	switch r.Method {
+	case "GET":
+
+		var conf = make(map[string]string)
+	
+		conf["Name"]= ""
+
+		if (r.URL.RawQuery !=""){
+			conf["Name"]=r.URL.Query().Get("name")
+		}
+
+		if (conf["Name"] !="" ){
+			var id =rule.FindRuleID(db,conf["Name"])
+			conf["Id"]=strconv.Itoa(id)
+			conf["Domain"]=rule.FindDomain(db,id)
+		} else {
+			conf["Domain"]=""
+			conf["Id"]= "0"
+		}
+
+		files := []string{
+			"./static/rule_create.tmpl",
+			"./static/base.tmpl",
+		}
+
+		t, _ := template.ParseFiles(files...)
+		t.Execute(w, conf)
+
+	case "POST":
+		var err error
+		if err = r.ParseForm(); err != nil {
+			report(w,fmt.Sprintf("ParseForm() err: %v", err))
+			return
+		}
+
+		//Инициализируем переменные с данными о настройках
+		var conf = make(map[string]string)
+
+		//Вытаскиваем из формы все параметры
+		for parameter, value:=range r.Form {
+			conf[parameter]=value[0]
+		}
+
+		var id int;
+		id,err = strconv.Atoi(conf["id"])
+		
+		if (id==0) { //Создать id если его нет
+			if err = rule.CreateRuleID(db,conf["name"],userProfile.Login); err != nil {
+				report(w,fmt.Sprintf("Создание правила завершенно с ошибкой: %v", err))
+				return
+			} else {
+				id = rule.FindRuleID(db,conf["name"])
+			}
+		} 
+
+		rule.ChangeRuleName(db,id,conf["name"])
+		if err != nil {fmt.Println(err)}
+
+		rule.ChangeDomain(db,id,conf["domain"])
+		if err != nil {fmt.Println(err)}
+
+		if err != nil {
+			report(w,fmt.Sprintf("Ошибка создания правила: %v", err))
+			return
+		} else {
+			report(w,"Правило создано")
 		}		
 
 	default:

@@ -1,0 +1,17 @@
+{{template "base" .}}
+
+{{define "title"}}Настройка правил блокировки{{end}}
+
+{{define "main"}}
+<h1>Настройка правил блокировки</h1>
+<div>
+	<form method="POST" action="/rule_create">
+		<input type="hidden" name="id" value={{ .Id}}>
+		<p><label>Название правил</label><input type="text" name="name" value={{ .Name}}> </p>
+		<p>Заблокированые домены</p>
+		<p><textarea name="domain">{{ .Domain}}</textarea></p>
+		<input type="submit" value="Сохранить" /></p>
+	</form>
+</div>
+
+{{end}}

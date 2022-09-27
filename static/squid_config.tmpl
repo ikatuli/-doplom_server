@@ -20,8 +20,8 @@
 				<p><label>Количество кеша оперативной памяти в MB </label><input required name="Cache" type="number" value={{ .Cache}} /></p>
 				<p><label>Максимального размера кешируемого объекта в MB </label><input required name="MaximumObjectSize" type="number" value={{ .MaximumObjectSize}} /></p>
 				<p><label>SSL Bumping </label><input type="checkbox" name="SSL" value="SSL" {{ if .SSL -}} checked {{end}}> </p>
-				<p><label>Включить e2guardian</label><input type="checkbox" name="e2guardian" value="e2guardian" {{ if .e2guardian -}} checked {{end}}></p>
-				<p><label>Включить dnscrypt-proxy </label><input required name="DNS" type="checkbox" value="DNS" {{ if .DNS -}} checked {{end}}> </p>
+				<p><label>Интегрировать e2guardian</label><input type="checkbox" name="e2guardian" value="e2guardian" {{ if .e2guardian -}} checked {{end}}></p>
+				<p><label>Интегрировать dnscrypt-proxy </label><input name="DNS" type="checkbox" value="DNS" {{ if .DNS -}} checked {{end}}> </p>
 
 				<input type="reset" value="Сбросить настройки" /><input type="submit" value="Сохранить" />
 			</form>

@@ -1,0 +1,22 @@
+{{template "base" .}}
+
+{{define "title"}}Настройки правил блокировки{{end}}
+
+{{define "main"}}
+<h1>Настройки правил блокировки</h1>
+<div>
+	<form method="POST" action="/rule">
+		{{range $k:= .}}<p><input value="{{$k}}" type="radio" name="rule"><label for="{{$k}}"><a href="/rule_create?name={{$k}}">{{$k}}</a></label></p>{{end}}
+		
+		<select required name="action">
+			<option disabled selected>Выберете действие</option>
+			<option autofocus value="activate">Активировать</option>
+			<option value="delete">Удалить</option>
+		</select>
+		<input type="submit" value="Выполнить" /></p>
+	</form>
+</div>
+
+<p><a href="/rule_create">Создать правило</a></p>
+
+{{end}}
